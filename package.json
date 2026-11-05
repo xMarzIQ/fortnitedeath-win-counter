@@ -1,0 +1,8 @@
+{
+  "name": "streak-overlay",
+  "version": "1.0.0",
+  "description": "Fortnite-style loss streak overlay with a win counter that appears after the first win",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" }
+}

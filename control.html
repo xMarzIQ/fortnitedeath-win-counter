@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Streak control</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 800; font-display: swap; src: url(/fonts/barlow-condensed-800.woff2) format('woff2'); }
+  @font-face { font-family: 'Barlow Condensed'; font-weight: 900; font-display: swap; src: url(/fonts/barlow-condensed-900.woff2) format('woff2'); }
+
+  :root {
+    --bg: #0d1033;
+    --panel: #141a52;
+    --line: #2a3380;
+    --ice: #7fd4ff;
+    --red: #e0102c;
+    --gold: #ffd23f;
+    --purple: #1b1250;
+    --text: #f2f4ff;
+    --muted: #9aa3d6;
+    --display: 'Barlow Condensed', Impact, 'Arial Narrow', sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 20px 16px 48px;
+  }
+  main { width: 100%; max-width: 460px; }
+  h1 { font-family: var(--display); font-weight: 900; font-size: 28px; margin: 4px 0 16px; letter-spacing: .02em; }
+  h2 { font-size: 14px; font-weight: 500; color: var(--muted); margin: 26px 0 8px; }
+
+  button { font: inherit; color: inherit; cursor: pointer; touch-action: manipulation; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--ice); outline-offset: 2px; }
+
+  .readout { display: flex; gap: 10px; margin-bottom: 14px; }
+  .stat { flex: 1; background: var(--panel); border: 1px solid rgba(255,255,255,.85); padding: 8px 12px 10px; }
+  .stat span { display: block; font-size: 13px; color: var(--muted); }
+  .stat b { display: block; font-family: var(--display); font-weight: 900; font-size: 52px; line-height: 1; }
+  .stat.loss { border-left: 6px solid var(--red); }
+  .stat.win  { border-left: 6px solid var(--gold); }
+  .stat.win b { color: var(--gold); }
+
+  #msg { min-height: 20px; font-size: 14px; color: #ff8aa0; margin-bottom: 8px; }
+
+  .big { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+  .btn-big {
+    font-family: var(--display); font-weight: 900; font-size: 40px;
+    padding: 26px 8px 22px; border: 1px solid #fff;
+    box-shadow: 3px 3px 0 rgba(0,0,0,.5);
+    transition: transform .08s ease, box-shadow .08s ease;
+  }
+  .btn-big:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 rgba(0,0,0,.5); }
+  .btn-big small { display: block; font-family: system-ui, sans-serif; font-weight: 500; font-size: 12px; opacity: .8; margin-top: 2px; }
+  .btn-loss { background: var(--red); color: #fff; }
+  .btn-win  { background: var(--gold); color: var(--purple); }
+
+  .fix { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .btn-small { background: transparent; border: 1px solid var(--line); padding: 12px 6px; font-size: 15px; }
+  .btn-small:hover { border-color: var(--ice); }
+  .btn-small:active { background: var(--panel); }
+  .help { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 8px 0 0; }
+  .btn-reset { width: 100%; margin-top: 10px; color: #ff8aa0; border-color: #5a2a55; }
+
+  .set { display: flex; gap: 10px; align-items: flex-end; }
+  label { flex: 1; font-size: 13px; color: var(--muted); display: block; }
+  input, select {
+    width: 100%; margin-top: 4px; font: inherit; font-size: 17px; color: var(--text);
+    background: var(--panel); border: 1px solid var(--line); padding: 9px 10px; border-radius: 0;
+  }
+
+  .keybox { display: none; background: var(--panel); border: 1px solid var(--red); padding: 14px; margin-bottom: 14px; }
+  .keybox.open { display: block; }
+  .keybox p { margin: 0 0 10px; font-size: 15px; }
+  .keyrow { display: flex; gap: 10px; }
+  .keyrow input { margin-top: 0; }
+
+  .opts { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 10px; }
+  .linkrow { display: flex; gap: 8px; }
+  .linkrow input { margin-top: 0; font-size: 13px; }
+  .preview { margin-top: 10px; background: #5a4bd1; border: 1px solid var(--line); }
+  .preview iframe { display: block; width: 100%; height: 150px; border: 0; background: transparent; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Streak control</h1>
+
+  <div class="keybox" id="keybox">
+    <p>Enter your control key to use these buttons.</p>
+    <div class="keyrow">
+      <input id="keyInput" type="password" placeholder="Control key" autocomplete="current-password" aria-label="Control key">
+      <button class="btn-small" id="keySave" style="flex:none; padding:0 18px">Save key</button>
+    </div>
+  </div>
+
+  <div class="readout">
+    <div class="stat loss"><span>Loss streak</span><b id="sStreak">0</b></div>
+    <div class="stat win"><span>Wins</span><b id="sWins">0</b></div>
+  </div>
+
+  <div id="msg" role="status"></div>
+
+  <div class="big">
+    <button class="btn-big btn-loss" id="bLoss">Loss<small>Key: L</small></button>
+    <button class="btn-big btn-win" id="bWin">Win<small>Key: W</small></button>
+  </div>
+
+  <h2>Pressed the wrong one?</h2>
+  <div class="fix">
+    <button class="btn-small" id="bUnloss">Remove a loss</button>
+    <button class="btn-small" id="bUnwin">Remove a win</button>
+    <button class="btn-small" id="bUndo">Undo last press</button>
+  </div>
+  <p class="help">A win clears the streak. If you hit Win by mistake, use Undo last press to bring the streak back too. Remove a win only lowers the win count.</p>
+
+  <h2>Fix the numbers</h2>
+  <div class="set">
+    <label>Loss streak<input id="inStreak" type="number" min="0" max="9999" inputmode="numeric"></label>
+    <label>Wins<input id="inWins" type="number" min="0" max="9999" inputmode="numeric"></label>
+    <button class="btn-small" id="bSet" style="flex:none; padding:12px 18px">Save</button>
+  </div>
+  <button class="btn-small btn-reset" id="bReset">Reset everything to 0</button>
+
+  <h2>Overlay link for OBS</h2>
+  <div class="opts">
+    <label>Screen corner
+      <select id="oPos">
+        <option value="tl">Top left</option>
+        <option value="tr">Top right</option>
+        <option value="bl">Bottom left</option>
+        <option value="br">Bottom right</option>
+      </select>
+    </label>
+    <label>Win box under
+      <select id="oWin">
+        <option value="left">Left</option>
+        <option value="right">Right</option>
+      </select>
+    </label>
+    <label>Size
+      <select id="oScale">
+        <option value="0.75">75%</option>
+        <option value="1" selected>100%</option>
+        <option value="1.25">125%</option>
+        <option value="1.5">150%</option>
+        <option value="2">200%</option>
+      </select>
+    </label>
+  </div>
+  <div class="linkrow">
+    <input id="link" readonly aria-label="Overlay link">
+    <button class="btn-small" id="bCopy" style="flex:none; padding:0 16px">Copy</button>
+  </div>
+  <div class="preview"><iframe id="frame" title="Overlay preview"></iframe></div>
+</main>
+
+<script>
+  var key = localStorage.getItem('streakKey') || '';
+  var $ = function (id) { return document.getElementById(id); };
+  var msg = $('msg'), keybox = $('keybox');
+  var editing = false;
+
+  function show(s) {
+    $('sStreak').textContent = s.streak;
+    $('sWins').textContent = s.wins;
+    if (!editing) { $('inStreak').value = s.streak; $('inWins').value = s.wins; }
+  }
+
+  function buzz() { if (navigator.vibrate) navigator.vibrate(15); }
+
+  function send(body) {
+    msg.textContent = '';
+    return fetch('/api/action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-key': key },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      if (r.status === 401) {
+        keybox.classList.add('open');
+        msg.textContent = key ? 'That key is wrong. Try again.' : '';
+        throw new Error('auth');
+      }
+      return r.json();
+    }).then(function (s) {
+      if (s.error) { msg.textContent = 'Nothing to change there.'; return; }
+      keybox.classList.remove('open');
+      buzz();
+      show(s);
+    }).catch(function (e) {
+      if (e.message !== 'auth') msg.textContent = 'Could not reach the server. Check your connection.';
+    });
+  }
+
+  $('bLoss').onclick = function () { send({ action: 'loss' }); };
+  $('bWin').onclick = function () { send({ action: 'win' }); };
+  $('bUnloss').onclick = function () { send({ action: 'unloss' }); };
+  $('bUnwin').onclick = function () { send({ action: 'unwin' }); };
+  $('bUndo').onclick = function () { send({ action: 'undo' }); };
+  $('bReset').onclick = function () {
+    if (confirm('Reset the loss streak and wins to 0?')) send({ action: 'reset' });
+  };
+  $('bSet').onclick = function () {
+    editing = false;
+    send({ action: 'set', streak: $('inStreak').value, wins: $('inWins').value });
+  };
+  $('keySave').onclick = function () {
+    key = $('keyInput').value;
+    localStorage.setItem('streakKey', key);
+    keybox.classList.remove('open');
+    msg.textContent = 'Key saved. Press a button again.';
+  };
+
+  ['inStreak', 'inWins'].forEach(function (id) {
+    $(id).addEventListener('focus', function () { editing = true; });
+    $(id).addEventListener('blur', function () { editing = false; });
+  });
+
+  document.addEventListener('keydown', function (e) {
+    var t = e.target.tagName;
+    if (t === 'INPUT' || t === 'SELECT' || e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.key.toLowerCase();
+    if (k === 'l') send({ action: 'loss' });
+    else if (k === 'w') send({ action: 'win' });
+    else if (k === 'u') send({ action: 'undo' });
+  });
+
+  // Overlay link builder
+  function buildLink() {
+    var p = [];
+    if ($('oPos').value !== 'tl') p.push('pos=' + $('oPos').value);
+    if ($('oWin').value !== 'left') p.push('win=' + $('oWin').value);
+    if ($('oScale').value !== '1') p.push('scale=' + $('oScale').value);
+    var path = '/overlay' + (p.length ? '?' + p.join('&') : '');
+    $('link').value = location.origin + path;
+    $('frame').src = path;
+  }
+  ['oPos', 'oWin', 'oScale'].forEach(function (id) { $(id).onchange = buildLink; });
+  $('bCopy').onclick = function () {
+    $('link').select();
+    var done = function () { $('bCopy').textContent = 'Copied'; setTimeout(function () { $('bCopy').textContent = 'Copy'; }, 1500); };
+    if (navigator.clipboard) navigator.clipboard.writeText($('link').value).then(done, function () { document.execCommand('copy'); done(); });
+    else { document.execCommand('copy'); done(); }
+  };
+  buildLink();
+
+  var es = new EventSource('/events');
+  es.onmessage = function (e) { try { show(JSON.parse(e.data)); } catch (err) {} };
+</script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Loss streak overlay</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  @font-face {
+    font-family: 'Barlow Condensed';
+    font-weight: 800;
+    font-display: block;
+    src: url(/fonts/barlow-condensed-800.woff2) format('woff2');
+  }
+  @font-face {
+    font-family: 'Barlow Condensed';
+    font-weight: 900;
+    font-display: block;
+    src: url(/fonts/barlow-condensed-900.woff2) format('woff2');
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: transparent; overflow: hidden; }
+
+  .hud {
+    position: fixed;
+    margin: 18px 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    font-family: 'Barlow Condensed', Impact, 'Arial Narrow', sans-serif;
+    opacity: 0;
+    transform: scale(var(--scale, 1));
+  }
+  .hud.ready { opacity: 1; transition: opacity .3s ease; }
+  .hud.pos-tl { top: 0; left: 0; transform-origin: top left; }
+  .hud.pos-tr { top: 0; right: 0; transform-origin: top right; }
+  .hud.pos-bl { bottom: 0; left: 0; transform-origin: bottom left; }
+  .hud.pos-br { bottom: 0; right: 0; transform-origin: bottom right; }
+  .hud.win-right { align-items: flex-end; }
+
+  .chip {
+    display: flex;
+    align-items: stretch;
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    background: #141a52;
+    color: #fff;
+  }
+
+  /* Loss streak: skull on top, label under it, number on the right */
+  .sc {
+    display: grid;
+    grid-template-columns: auto auto;
+    grid-template-rows: 30px 16px;
+    box-shadow: 2px 2px 0 rgba(12, 8, 50, 0.45);
+  }
+  .sc .ic {
+    grid-column: 1;
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #e0102c;
+  }
+  .sc .ic img { width: 22px; height: 24px; display: block; }
+  .sc .tx { display: contents; }
+  .sc .lb {
+    grid-column: 1;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 7px;
+    font-size: 11px;
+    line-height: 1;
+    font-weight: 800;
+    letter-spacing: .05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #fff;
+    background: #e0102c;
+    border-top: 1px solid rgba(0, 0, 0, 0.22);
+  }
+  .sc .nm {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    font-size: 38px;
+    font-weight: 900;
+    line-height: 1;
+    min-width: 16px;
+    padding: 0 13px 0 10px;
+    text-align: center;
+  }
+
+  /* Wins: crown and number, only shown after the first win */
+  .wc {
+    height: 28px;
+    box-shadow: 2px 2px 0 rgba(12, 8, 50, 0.45);
+    opacity: 0;
+    transform: translate(-16px, -4px);
+    transition: transform .45s cubic-bezier(.2, 1.3, .4, 1), opacity .25s ease;
+  }
+  .wc.show { opacity: 1; transform: translate(0, 0); }
+  .hud.win-right .wc { transform: translate(12px, -4px); }
+  .hud.win-right .wc.show { transform: translate(0, 0); }
+  .hud.instant .wc { transition: none; }
+  .wc .ic {
+    width: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #1b1250;
+  }
+  .wc .ic img { width: 22px; height: auto; display: block; }
+  .wc .tx { display: flex; align-items: center; padding: 0 10px 0 5px; }
+  .wc .nm {
+    font-size: 21px;
+    font-weight: 900;
+    line-height: 1;
+    color: #ffd23f;
+    min-width: 10px;
+    text-align: right;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wc { transition: opacity .2s ease; }
+  }
+</style>
+</head>
+<body>
+  <div class="hud pos-tl" id="hud">
+    <div class="chip sc">
+      <div class="ic"><img src="/skull.svg" alt=""></div>
+      <div class="tx">
+        <span class="lb">Loss streak</span>
+        <span class="nm" id="streak">0</span>
+      </div>
+    </div>
+    <div class="chip wc" id="winCard">
+      <div class="ic"><img src="/crown.png" alt=""></div>
+      <div class="tx"><span class="nm" id="wins">0</span></div>
+    </div>
+  </div>
+
+<script>
+  // Link options:  ?pos=tl|tr|bl|br   ?win=left|right   ?scale=1.25
+  var params = new URLSearchParams(location.search);
+  var pos = params.get('pos');
+  var winSide = params.get('win') || params.get('align');
+  var scale = parseFloat(params.get('scale'));
+  var hud = document.getElementById('hud');
+
+  var cls = 'hud pos-' + (['tl', 'tr', 'bl', 'br'].indexOf(pos) > -1 ? pos : 'tl');
+  if (winSide === 'right') cls += ' win-right';
+  hud.className = cls;
+  if (scale > 0) hud.style.setProperty('--scale', Math.min(scale, 4));
+
+  var streakEl = document.getElementById('streak');
+  var winsEl = document.getElementById('wins');
+  var winCard = document.getElementById('winCard');
+  var last = null;
+
+  function pop(el) {
+    if (!el.animate) return;
+    el.animate(
+      [{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }],
+      { duration: 260, easing: 'ease-out' }
+    );
+  }
+
+  function render(s) {
+    var first = last === null;
+    streakEl.textContent = s.streak;
+    winsEl.textContent = s.wins;
+    winCard.classList.toggle('show', s.wins >= 1);
+
+    if (first) {
+      hud.classList.add('instant');
+      requestAnimationFrame(function () {
+        hud.classList.add('ready');
+        requestAnimationFrame(function () { hud.classList.remove('instant'); });
+      });
+    } else {
+      if (s.streak !== last.streak) pop(streakEl);
+      if (s.wins !== last.wins) pop(winsEl);
+    }
+    last = { streak: s.streak, wins: s.wins };
+  }
+
+  var es = new EventSource('/events');
+  es.onmessage = function (e) {
+    try { render(JSON.parse(e.data)); } catch (err) {}
+  };
+
+  // Safety net in case the live connection is blocked or drops
+  setInterval(function () {
+    fetch('/api/state', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        if (last === null || s.streak !== last.streak || s.wins !== last.wins) render(s);
+      })
+      .catch(function () {});
+  }, 10000);
+</script>
+</body>
+</html>
